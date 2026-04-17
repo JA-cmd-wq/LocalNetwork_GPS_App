@@ -1,5 +1,42 @@
 # LoRa GPS 更新日志
 
+## v1.9 — 2026-04-17
+
+### 配合固件 v2.9 BT 守卫：离线状态完整可视化
+
+随着固件 v2.9 加入 `g_lora_busy` 守卫后，BT 软串口会在 LoRa 收发时段主动跳过 `$LGPS` 帧，
+导致 App 侧偶发丢帧（设计行为）。本版本让 App 对"短暂丢帧"与"设备真的掉线"有明确区分和清晰 UI 反馈。
+
+### 新增
+- **设备离线判定** — 超过 **10 秒**未收到任何更新 → 判定为离线（`isDeviceOffline` 常量 `DEVICE_OFFLINE_THRESHOLD_MS = 10000`）
+- **设备面板离线样式** — 离线设备头像半透明、红色 `离线` 徽章、`最后位置` 标注、最后更新时间变红警示
+- **地图离线标记** — 离线设备保留 marker 在最后已知位置，但变灰 + 停止 pulse 动画 + 标签加 `· 离线` 红字（**以前是直接消失**）
+- **距离连线智能过滤** — 只在当前在线的设备之间画距离连线（离线设备数据已过期）
+- **顶部在线/总数** — 标题栏计数从 `valid/total` 改为 `online/total`（N/M 每秒刷新）
+- **连接状态"无数据"提示** — 蓝牙已连接但 10 秒无 `$LGPS` 帧 → ConnectionPanel 按钮变橙色 `无数据` + 展开面板红色警告条，指导用户检查主机/蓝牙
+- **轨迹时间窗淘汰** — 轨迹点保留 **30 分钟**后自动剔除（`TRACK_RETENTION_MS`），配合原有 500 点数量上限
+
+### 改动文件
+| 文件 | 改动 |
+|------|------|
+| `src/utils/device-status.ts` | **新建** — `isDeviceOffline` / `filterTrackByTime` + 阈值常量 |
+| `src/types/device.ts` | `ConnectionState` 新增 `dataStale?: boolean` |
+| `src/utils/lgps-parser.ts` | `mergeDeviceUpdates` 追加轨迹点时先按时间窗过滤 |
+| `src/hooks/useConnectionManager.ts` | 加 `lastFrameTsRef`，每秒检测数据停滞并刷新 `connection.dataStale` |
+| `src/components/DevicePanel.tsx` | 离线灰化头像、红色徽章、`最后位置` 文案 |
+| `src/components/MapView.tsx` | `createAvatarMarker` 接受 `offline` 参数；离线 marker 保留但灰化 + 无 pulse；距离线只连在线设备；加 1s tick |
+| `src/components/ConnectionPanel.tsx` | `无数据` 状态的橙色按钮样式 + 展开面板警告条 |
+| `src/App.tsx` | 顶部 N/M 改为在线/总数，加 1s tick 驱动 |
+| `package.json` | `version` 1.8.0 → 1.9.0 |
+| `android/app/build.gradle` | `versionCode` 8→9, `versionName` "1.8"→"1.9" |
+
+### 与固件 v2.9 的关系
+- 固件 v2.9 `g_lora_busy` 守卫降低了 BT UART 对 LoRa 时序的干扰，代价是 BT 丢帧率略升
+- App v1.9 通过"10 秒才判离线"吸收了这部分丢帧，单次 BT 守卫（最多 2 秒）不会触发离线
+- 只有真正断电/超出 LoRa 范围/蓝牙断连这类长时间失联才会触发离线指示
+
+---
+
 ## v1.8 — 2026-04-15
 
 ### Apple 风格 UI 全面改版

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Signal, Clock } from 'lucide-react';
+import { MapPin, Signal, Clock, WifiOff } from 'lucide-react';
 import type { DeviceInfo } from '../types/device';
 import { haversineDistance, formatDistance } from '../utils/haversine';
+import { isDeviceOffline } from '../utils/device-status';
 
 export type ViewMode = 'concentrator' | 'sensor';
 
@@ -41,6 +42,7 @@ export default function DevicePanel({ devices, selectedEui, onSelect, concentrat
       <AnimatePresence mode="popLayout">
         {visibleDevices.map((device, index) => {
           const isSelected = device.eui === selectedEui;
+          const offline = isDeviceOffline(device);
 
           let distInfo: string | null = null;
           if (mode === 'concentrator') {
@@ -82,17 +84,29 @@ export default function DevicePanel({ devices, selectedEui, onSelect, concentrat
             >
               <div className="flex items-center gap-3">
                 <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0"
-                  style={{ background: device.color }}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0 transition-opacity duration-200"
+                  style={{ background: device.color, opacity: offline ? 0.35 : 1 }}
                 >
                   {device.avatar}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white font-medium text-sm tracking-tight">{device.label}</span>
-                    <span className="text-white/30 text-[10px] font-mono">{device.eui.slice(-4)}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`font-medium text-sm tracking-tight ${offline ? 'text-white/50' : 'text-white'}`}>
+                      {device.label}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {offline && (
+                        <span className="flex items-center gap-0.5 text-[9px] text-[#FF453A] bg-[#FF453A]/15 px-1.5 py-0.5 rounded-full font-medium">
+                          <WifiOff size={9} />
+                          离线
+                        </span>
+                      )}
+                      <span className="text-white/30 text-[10px] font-mono">{device.eui.slice(-4)}</span>
+                    </div>
                   </div>
-                  {device.valid ? (
+                  {offline ? (
+                    <span className="text-[11px] text-[#FF453A]/70">最后位置 {device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}</span>
+                  ) : device.valid ? (
                     <div className="mt-1 space-y-0.5">
                       <div className="text-[11px] text-white/50 font-mono">
                         {device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}
@@ -110,24 +124,24 @@ export default function DevicePanel({ devices, selectedEui, onSelect, concentrat
                 </div>
               </div>
 
-              {device.valid && (
+              {(device.valid || offline) && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
-                  className="flex items-center gap-4 mt-2 pt-2 border-t border-white/[0.06] text-[11px] text-white/40"
+                  className={`flex items-center gap-4 mt-2 pt-2 border-t border-white/[0.06] text-[11px] ${offline ? 'text-white/25' : 'text-white/40'}`}
                 >
-                  {device.rssi !== undefined && (
+                  {device.rssi !== undefined && !offline && (
                     <span className="flex items-center gap-1">
                       <Signal size={10} />
                       {device.rssi} dBm
                     </span>
                   )}
-                  {distInfo && (
+                  {distInfo && !offline && (
                     <span className="flex items-center gap-1 text-white/60 font-medium">
                       {distInfo}
                     </span>
                   )}
-                  <span className="flex items-center gap-1 ml-auto">
+                  <span className={`flex items-center gap-1 ml-auto ${offline ? 'text-[#FF453A]/80 font-medium' : ''}`}>
                     <Clock size={10} />
                     {timeAgo(device.lastUpdate)}
                   </span>

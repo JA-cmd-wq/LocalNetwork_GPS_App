@@ -35,4 +35,6 @@ export interface ConnectionState {
   type: 'none' | 'bluetooth' | 'serial';
   status: 'disconnected' | 'connecting' | 'connected';
   deviceName?: string;
+  /** 蓝牙已连接但超时未收到任何 $LGPS 帧 —— 用于提示用户主机可能没在发数据 */
+  dataStale?: boolean;
 }

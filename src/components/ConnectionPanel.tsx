@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bluetooth, Usb, Loader2, X } from 'lucide-react';
+import { Bluetooth, Usb, Loader2, X, WifiOff, AlertTriangle } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import type { ConnectionState } from '../types/device';
 
@@ -14,6 +14,7 @@ interface ConnectionPanelProps {
 export default function ConnectionPanel({ connection, onBluetoothConnect, onSerialConnect, onDisconnect }: ConnectionPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const isStale = connection.status === 'connected' && connection.dataStale === true;
 
   useEffect(() => {
     if (!expanded) return;
@@ -30,15 +31,20 @@ export default function ConnectionPanel({ connection, onBluetoothConnect, onSeri
         whileTap={{ scale: 0.92 }}
         onClick={() => setExpanded(!expanded)}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150
-          ${connection.status === 'connected'
-            ? 'bg-[#30D158]/15 text-[#30D158]'
-            : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.06]'}`}
+          ${isStale
+            ? 'bg-[#FF9F0A]/15 text-[#FF9F0A]'
+            : connection.status === 'connected'
+              ? 'bg-[#30D158]/15 text-[#30D158]'
+              : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.06]'}`}
       >
         {connection.status === 'connecting'
           ? <Loader2 size={14} className="animate-spin" />
-          : <Bluetooth size={14} />}
+          : isStale
+            ? <WifiOff size={14} />
+            : <Bluetooth size={14} />}
         <span>
-          {connection.status === 'connected' ? '已连接'
+          {isStale ? '无数据'
+            : connection.status === 'connected' ? '已连接'
             : connection.status === 'connecting' ? '连接中' : '连接'}
         </span>
       </motion.button>
@@ -77,6 +83,14 @@ export default function ConnectionPanel({ connection, onBluetoothConnect, onSeri
 
             {connection.status === 'connected' && (
               <div className="flex flex-col gap-2">
+                {isStale && (
+                  <div className="flex items-start gap-2 px-2 py-2 bg-[#FF9F0A]/10 border border-[#FF9F0A]/25 rounded-lg">
+                    <AlertTriangle size={13} className="text-[#FF9F0A] shrink-0 mt-0.5" />
+                    <div className="text-[11px] text-[#FF9F0A]/90 leading-snug">
+                      已连接，但 10 秒未收到主机数据。<br/>请检查主机开机状态、蓝牙信号或重新配对。
+                    </div>
+                  </div>
+                )}
                 <div className="text-[11px] text-white/40 px-1">
                   <div>类型: {connection.type === 'bluetooth' ? '蓝牙' : '串口'}</div>
                   {connection.deviceName && <div>设备: {connection.deviceName}</div>}

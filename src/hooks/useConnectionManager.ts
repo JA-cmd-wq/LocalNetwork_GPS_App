@@ -8,6 +8,7 @@ import { useSerial } from './useSerial';
 import { LineBuffer } from '../utils/line-buffer';
 import { parseLGPSLine, mergeDeviceUpdates } from '../utils/lgps-parser';
 import type { LGPSFrame } from '../utils/lgps-parser';
+import { DATA_STALE_THRESHOLD_MS } from '../utils/device-status';
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -21,8 +22,11 @@ export function useConnectionManager({ setDevices, devicesRef, onResetCaches }: 
   const [connection, setConnection] = useState<ConnectionState>({ type: 'none', status: 'disconnected' });
   const bleLineBuffer = useRef(new LineBuffer());
   const serialLineBuffer = useRef(new LineBuffer());
+  /** Timestamp (ms) of the most recently parsed valid $LGPS frame. 0 means none since connect. */
+  const lastFrameTsRef = useRef<number>(0);
 
   const processFrame = useCallback((frame: LGPSFrame) => {
+    lastFrameTsRef.current = Date.now();
     setDevices(prev => mergeDeviceUpdates(prev, frame));
   }, [setDevices]);
 
@@ -115,6 +119,32 @@ export function useConnectionManager({ setDevices, devicesRef, onResetCaches }: 
   useEffect(() => {
     setConnection(prev => ({ ...prev, status: serial.status }));
   }, [serial.status]);
+
+  // Reset last frame timestamp on (re)connect so dataStale starts accurate
+  useEffect(() => {
+    if (connection.status === 'connected') {
+      lastFrameTsRef.current = Date.now();
+    } else {
+      lastFrameTsRef.current = 0;
+    }
+  }, [connection.status]);
+
+  // Every 1s, update dataStale flag based on whether a frame arrived recently.
+  // Only meaningful when connection is connected.
+  useEffect(() => {
+    if (connection.status !== 'connected') {
+      if (connection.dataStale) {
+        setConnection(prev => ({ ...prev, dataStale: false }));
+      }
+      return;
+    }
+    const id = setInterval(() => {
+      const ts = lastFrameTsRef.current;
+      const stale = ts > 0 && Date.now() - ts > DATA_STALE_THRESHOLD_MS;
+      setConnection(prev => (prev.dataStale === stale ? prev : { ...prev, dataStale: stale }));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [connection.status, connection.dataStale]);
 
   return {
     connection,

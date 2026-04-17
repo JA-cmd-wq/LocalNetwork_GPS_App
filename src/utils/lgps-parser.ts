@@ -1,6 +1,7 @@
 import type { DeviceInfo } from '../types/device';
 import { int32ToDegrees } from './coord-transform';
 import { haversineDistance } from './haversine';
+import { filterTrackByTime } from './device-status';
 
 /**
  * $LGPS 协议帧类型
@@ -189,7 +190,11 @@ export function mergeDeviceUpdates(
       if (dev.valid) {
         const last = d.track[d.track.length - 1];
         if (!last || haversineDistance(last.lat, last.lon, dev.lat, dev.lon) >= 1) {
-          d.track = [...d.track, { lat: dev.lat, lon: dev.lon, timestamp: now }].slice(-500);
+          // 先按时间窗淘汰老点（30 分钟），再限制数量 500 兜底
+          d.track = filterTrackByTime(
+            [...d.track, { lat: dev.lat, lon: dev.lon, timestamp: now }],
+            now,
+          ).slice(-500);
         }
       }
       updated[idx] = d;

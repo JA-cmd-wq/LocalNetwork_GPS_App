@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import type { DeviceInfo, AlertConfig } from './types/device';
 import { exportToJSON, exportToCSV } from './utils/storage';
 import { haversineDistance } from './utils/haversine';
+import { isDeviceOffline } from './utils/device-status';
 import MapView from './components/MapView';
 import DevicePanel from './components/DevicePanel';
 import type { ViewMode } from './components/DevicePanel';
@@ -48,6 +49,13 @@ function App() {
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // 1s tick for header online-count to reflect offline transitions
+  const [, setHeaderTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setHeaderTick(t => t + 1), 1000);
+    return () => clearInterval(id);
   }, []);
 
   const sidebarWidth = isMobile ? Math.min(320, window.innerWidth * 0.85) : 300;
@@ -214,7 +222,9 @@ function App() {
             <Satellite size={14} className="text-[#0A84FF]" />
           </div>
           <h1 className="text-white/90 text-sm font-semibold tracking-tight hidden sm:block">LoRa GPS</h1>
-          <span className="text-white/20 text-[10px] font-mono">{devices.filter(d => d.valid).length}/{devices.length}</span>
+          <span className="text-white/20 text-[10px] font-mono">
+            {devices.filter(d => d.valid && !isDeviceOffline(d)).length}/{devices.length}
+          </span>
           <div className="flex items-center bg-white/[0.04] rounded-lg p-0.5 ml-1 md:ml-2">
             <motion.button
               whileTap={{ scale: 0.95 }}
