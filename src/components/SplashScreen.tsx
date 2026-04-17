@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { version } from '../../package.json';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Satellite } from 'lucide-react';
@@ -64,13 +64,17 @@ function OrbitDot({ angle, radius, delay, dotSize }: { angle: number; radius: nu
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<'logo' | 'text' | 'done'>('logo');
+  // Stabilize onFinish via ref so parent re-renders (e.g. 1s header tick) don't
+  // reset the splash timers and trap the user on the loading screen.
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase('text'), 800);
     const t2 = setTimeout(() => setPhase('done'), 2600);
-    const t3 = setTimeout(() => onFinish(), 3200);
+    const t3 = setTimeout(() => onFinishRef.current(), 3200);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [onFinish]);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {

@@ -1,5 +1,13 @@
 # LoRa GPS 更新日志
 
+## v1.9.1 — 2026-04-17 (hotfix)
+
+### 修复 Splash 卡死
+- **根因**：v1.9 新加的 App 1s header tick 导致父组件持续 re-render，SplashScreen 的 `useEffect([onFinish])` 依赖每次拿到新函数引用 → timer 被无限重置 → 3200ms 永远跑不完
+- **修复**：`SplashScreen.tsx` 用 `useRef` 稳定化 `onFinish`，effect 依赖改空数组 `[]`
+
+---
+
 ## v1.9 — 2026-04-17
 
 ### 配合固件 v2.9 BT 守卫：离线状态完整可视化
