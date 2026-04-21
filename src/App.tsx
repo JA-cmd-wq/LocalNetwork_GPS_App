@@ -35,7 +35,7 @@ function App() {
   const [amapSec, setAmapSec] = useState(() => localStorage.getItem('amap_sec') || '');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const devicesRef = useRef(devices);
-  devicesRef.current = devices;
+  useEffect(() => { devicesRef.current = devices; }, [devices]);
   const geocodeCacheRef = useRef<Map<string, { lat: number; lon: number }>>(new Map());
 
   const { connection, spp, handleBluetoothConnect, handleSPPDeviceSelect, handleSerialConnect, handleDisconnect } =
@@ -102,6 +102,12 @@ function App() {
     });
     setActiveAlerts(newActive);
   }, [devices, alerts]);
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     if (activeAlerts.length > 0 && 'Notification' in window && Notification.permission === 'granted') {

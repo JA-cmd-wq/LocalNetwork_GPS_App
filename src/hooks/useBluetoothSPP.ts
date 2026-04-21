@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import BluetoothSPP from '../plugins/bluetooth-spp';
@@ -25,12 +25,21 @@ export function useBluetoothSPP(
   const dataListenerRef = useRef<PluginListenerHandle | null>(null);
   const disconnectListenerRef = useRef<PluginListenerHandle | null>(null);
   const onLineRef = useRef(onLine);
-  onLineRef.current = onLine;
+  useEffect(() => { onLineRef.current = onLine; }, [onLine]);
   const lastTargetRef = useRef<BluetoothSPPDevice | null>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doConnectRef = useRef<(t: BluetoothSPPDevice) => Promise<void>>(() => Promise.resolve());
 
   const doConnect = useCallback(async (target: BluetoothSPPDevice) => {
+    if (dataListenerRef.current) {
+      dataListenerRef.current.remove();
+      dataListenerRef.current = null;
+    }
+    if (disconnectListenerRef.current) {
+      disconnectListenerRef.current.remove();
+      disconnectListenerRef.current = null;
+    }
     try {
       setStatus('connecting');
       setPairedDevices([]);
@@ -45,7 +54,7 @@ export function useBluetoothSPP(
         if (lastTargetRef.current && retryCountRef.current < 3) {
           const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 8000);
           retryCountRef.current++;
-          retryTimerRef.current = setTimeout(() => doConnect(lastTargetRef.current!), delay);
+          retryTimerRef.current = setTimeout(() => doConnectRef.current(lastTargetRef.current!), delay);
         }
       });
 
@@ -54,8 +63,8 @@ export function useBluetoothSPP(
       setStatus('connected');
       lastTargetRef.current = target;
       retryCountRef.current = 0;
-    } catch (e: any) {
-      setError(e.message || 'Connection failed');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Connection failed');
       setStatus('disconnected');
       if (dataListenerRef.current) {
         dataListenerRef.current.remove();
@@ -67,6 +76,8 @@ export function useBluetoothSPP(
       }
     }
   }, []);
+
+  useEffect(() => { doConnectRef.current = doConnect; }, [doConnect]);
 
   const connect = useCallback(async () => {
     if (!Capacitor.isNativePlatform()) {
@@ -95,8 +106,8 @@ export function useBluetoothSPP(
       } else {
         setPairedDevices(candidates);
       }
-    } catch (e: any) {
-      setError(e.message || 'Failed to list devices');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to list devices');
       setStatus('disconnected');
     }
   }, [doConnect]);
@@ -118,7 +129,9 @@ export function useBluetoothSPP(
     if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
     try {
       await BluetoothSPP.disconnect();
-    } catch {}
+    } catch {
+      // BluetoothSPP.disconnect may throw if already disconnected; safe to ignore
+    }
     if (dataListenerRef.current) {
       dataListenerRef.current.remove();
       dataListenerRef.current = null;

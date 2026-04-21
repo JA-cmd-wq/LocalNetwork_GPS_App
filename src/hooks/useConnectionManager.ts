@@ -85,7 +85,8 @@ export function useConnectionManager({ setDevices, devicesRef, onResetCaches }: 
   const handleDisconnect = useCallback(() => {
     devicesRef.current.forEach(d => {
       if (d.track.length > 1) {
-        saveTrack({ eui: d.eui, points: d.track, startTime: d.track[0].timestamp, endTime: d.track[d.track.length - 1].timestamp });
+        saveTrack({ eui: d.eui, points: d.track, startTime: d.track[0].timestamp, endTime: d.track[d.track.length - 1].timestamp })
+          .catch(err => console.warn('[saveTrack] failed', err));
       }
     });
     if (connection.type === 'bluetooth') {

@@ -1,7 +1,21 @@
 import type { DeviceInfo } from '../types/device';
-import { int32ToDegrees } from './coord-transform';
 import { haversineDistance } from './haversine';
 import { filterTrackByTime } from './device-status';
+
+function parseCoord(latStr: string, lonStr: string): [number, number] | null {
+  const latN = parseInt(latStr, 10);
+  const lonN = parseInt(lonStr, 10);
+  if (!Number.isFinite(latN) || !Number.isFinite(lonN)) return null;
+  const lat = latN / 1000000;
+  const lon = lonN / 1000000;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return [lat, lon];
+}
+
+function parseRssi(s: string): number | undefined {
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
 
 /**
  * $LGPS 协议帧类型
@@ -52,48 +66,43 @@ export function parseLGPSLine(line: string): LGPSFrame | null {
     if (parts.length < 16) return null;
 
     // 自身 (集中器)
-    const selfLat = int32ToDegrees(parseInt(parts[3], 10));
-    const selfLon = int32ToDegrees(parseInt(parts[4], 10));
-    const selfValid = parts[5] === '1';
+    const selfCoord = parseCoord(parts[3], parts[4]);
+    if (!selfCoord) return null;
     devices.push({
       eui: parts[2],
       role: 'concentrator',
-      lat: selfLat,
-      lon: selfLon,
-      valid: selfValid,
+      lat: selfCoord[0],
+      lon: selfCoord[1],
+      valid: parts[5] === '1',
     });
 
     // Sensor 1
     const s1Eui = parts[6];
-    const s1Lat = int32ToDegrees(parseInt(parts[7], 10));
-    const s1Lon = int32ToDegrees(parseInt(parts[8], 10));
     const s1Valid = parts[9] === '1';
-    const s1Rssi = parseInt(parts[10], 10);
-    if (s1Eui !== '00000000' || s1Valid) {
+    const s1Coord = parseCoord(parts[7], parts[8]);
+    if ((s1Eui !== '00000000' || s1Valid) && s1Coord) {
       devices.push({
         eui: s1Eui,
         role: 'sensor',
-        lat: s1Lat,
-        lon: s1Lon,
+        lat: s1Coord[0],
+        lon: s1Coord[1],
         valid: s1Valid,
-        rssi: s1Rssi,
+        rssi: parseRssi(parts[10]),
       });
     }
 
     // Sensor 2
     const s2Eui = parts[11];
-    const s2Lat = int32ToDegrees(parseInt(parts[12], 10));
-    const s2Lon = int32ToDegrees(parseInt(parts[13], 10));
     const s2Valid = parts[14] === '1';
-    const s2Rssi = parseInt(parts[15], 10);
-    if (s2Eui !== '00000000' || s2Valid) {
+    const s2Coord = parseCoord(parts[12], parts[13]);
+    if ((s2Eui !== '00000000' || s2Valid) && s2Coord) {
       devices.push({
         eui: s2Eui,
         role: 'sensor',
-        lat: s2Lat,
-        lon: s2Lon,
+        lat: s2Coord[0],
+        lon: s2Coord[1],
         valid: s2Valid,
-        rssi: s2Rssi,
+        rssi: parseRssi(parts[15]),
       });
     }
   } else {
@@ -104,50 +113,45 @@ export function parseLGPSLine(line: string): LGPSFrame | null {
     if (parts.length < 11) return null;
 
     // 自身 (传感器)
-    const selfLat = int32ToDegrees(parseInt(parts[3], 10));
-    const selfLon = int32ToDegrees(parseInt(parts[4], 10));
-    const selfValid = parts[5] === '1';
+    const selfCoord = parseCoord(parts[3], parts[4]);
+    if (!selfCoord) return null;
     devices.push({
       eui: parts[2],
       role: 'sensor',
-      lat: selfLat,
-      lon: selfLon,
-      valid: selfValid,
+      lat: selfCoord[0],
+      lon: selfCoord[1],
+      valid: parts[5] === '1',
     });
 
     // 对端 (主机 or 另一传感器)
     const otherEui = parts[6];
-    const otherLat = int32ToDegrees(parseInt(parts[7], 10));
-    const otherLon = int32ToDegrees(parseInt(parts[8], 10));
     const otherValid = parts[9] === '1';
-    const otherRssi = parseInt(parts[10], 10);
+    const otherCoord = parseCoord(parts[7], parts[8]);
     const otherRole = frameType === 'S' ? 'concentrator' as const : 'sensor' as const;
-    if (otherEui !== '00000000' || otherValid) {
+    if ((otherEui !== '00000000' || otherValid) && otherCoord) {
       devices.push({
         eui: otherEui,
         role: otherRole,
-        lat: otherLat,
-        lon: otherLon,
+        lat: otherCoord[0],
+        lon: otherCoord[1],
         valid: otherValid,
-        rssi: otherRssi,
+        rssi: parseRssi(parts[10]),
       });
     }
 
     // S帧扩展: 中继对端传感器 (经主机转发的另一台从机)
     if (frameType === 'S' && parts.length >= 16) {
       const relayEui = parts[11];
-      const relayLat = int32ToDegrees(parseInt(parts[12], 10));
-      const relayLon = int32ToDegrees(parseInt(parts[13], 10));
       const relayValid = parts[14] === '1';
-      const relayRssi = parseInt(parts[15], 10);
-      if (relayEui !== '00000000' || relayValid) {
+      const relayCoord = parseCoord(parts[12], parts[13]);
+      if ((relayEui !== '00000000' || relayValid) && relayCoord) {
         devices.push({
           eui: relayEui,
           role: 'sensor',
-          lat: relayLat,
-          lon: relayLon,
+          lat: relayCoord[0],
+          lon: relayCoord[1],
           valid: relayValid,
-          rssi: relayRssi,
+          rssi: parseRssi(parts[15]),
         });
       }
     }
